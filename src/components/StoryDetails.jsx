@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { FaPencilAlt, FaTrashAlt, FaArrowLeft } from 'react-icons/fa';  // Add FaArrowLeft
 
-const StoryDetails = ({ stories, isAuthorized, setStories }) => {
+const StoryDetails = ({ stories, isAuthorized, handleDelete, onEdit }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const story = stories.find(s => s.id === parseInt(id));
@@ -18,58 +19,8 @@ const StoryDetails = ({ stories, isAuthorized, setStories }) => {
     }
   }, [story]);
 
-  const handleEdit = async (e) => {
-    e.preventDefault();
-    
-    try {
-      const { data, error } = await supabase
-        .from('stories')
-        .update({ title: editTitle, content: editContent })
-        .eq('id', story.id)
-        .select();
-
-      if (error) {
-        alert('Error updating story');
-      } else {
-        // Update the stories state instead of reloading
-        setStories(prevStories => 
-          prevStories.map(s => 
-            s.id === story.id ? { ...s, title: editTitle, content: editContent } : s
-          )
-        );
-        setIsEditing(false);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error updating story');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this story?')) {
-      try {
-        const { error } = await supabase
-          .from('stories')
-          .delete()
-          .eq('id', story.id);
-
-        if (error) {
-          console.error('Delete error:', error);
-          alert('Error deleting story');
-        } else {
-          // Update local state first
-          setStories(prevStories => prevStories.filter(s => s.id !== story.id));
-          // Then navigate
-          navigate('/', { replace: true });
-        }
-      } catch (error) {
-        console.error('Delete error:', error);
-        alert('Error deleting story');
-      }
-    }
-  };
-
   const formatContent = (content) => {
+    if (!content) return null;
     return content.split(/\n{2,}|\n/).map((paragraph, index) => (
       <p key={index} className="story-paragraph">
         {paragraph}
@@ -81,17 +32,30 @@ const StoryDetails = ({ stories, isAuthorized, setStories }) => {
     return (
       <div className="story-details">
         <p>Story not found</p>
-        <div className="back-link-container">
-          <Link to="/" className="back-link">Back to stories</Link>
-        </div>
+        <Link to="/" className="back-button">
+          <FaArrowLeft />
+        </Link>
       </div>
     );
   }
 
+  const onEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const success = await onEdit(story.id, editTitle, editContent);
+      if (success) {
+        setIsEditing(false);
+      }
+    } catch (error) {
+      console.error('Error updating story:', error);
+      alert('Error updating story');
+    }
+  };
+
   return (
     <div className="story-details">
       {isEditing ? (
-        <form onSubmit={handleEdit} className="edit-form">
+        <form onSubmit={onEditSubmit} className="edit-form">  {/* Make sure this matches */}
           <input
             type="text"
             value={editTitle}
@@ -112,27 +76,24 @@ const StoryDetails = ({ stories, isAuthorized, setStories }) => {
         </form>
       ) : (
         <>
-          <h1 className="text-2xl font-bold">{story.title}</h1>
+          <h1>{story.title}</h1>
           <div className="story-content">
             {formatContent(story.content)}
           </div>
           {isAuthorized && (
             <div className="story-actions">
-              <button onClick={() => setIsEditing(true)} className="edit-button">
-                Edit Story
+              <button className="edit-button" onClick={() => setIsEditing(true)}>
+                <FaPencilAlt />
               </button>
-              <button onClick={handleDelete} className="delete-button">
-                Delete Story
+              <button className="delete-button" onClick={() => handleDelete(story.id)}>
+                <FaTrashAlt />
               </button>
             </div>
           )}
         </>
       )}
-      <div className="back-link-container">
-        <Link to="/" className="back-link">Back to stories</Link>
-      </div>
     </div>
   );
 };
 
-export default StoryDetails; 
+export default StoryDetails;

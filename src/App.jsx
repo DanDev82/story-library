@@ -4,33 +4,56 @@ import StoryList from './components/StoryList';
 import StoryDetails from './components/StoryDetails';
 import DarkModeToggle from './components/DarkModeToggle';
 import Login from './components/Login';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { FaArrowLeft, FaPlus } from 'react-icons/fa';
+import AddStoryModal from './components/AddStoryModal';
 import './index.css';
 import './styles/stories.css';
 import LogoutButton from './components/LogoutButton';
 
-const AUTHORIZED_EMAIL = 'ifdanthencool@gmail.com'; // Fixed the email address
+const AUTHORIZED_EMAIL = 'ifdanthencool@gmail.com';
 
 const App = () => {
+  const navigate = useNavigate();
   const [stories, setStories] = useState([]);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [sortOrder, setSortOrder] = useState('newest');
 
-  // Handle auth state
+  const fetchStories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stories')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching stories:', error);
+      } else {
+        setStories(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching stories:', error);
+    }
+  };
+
   useEffect(() => {
-    // Set up initial auth state
     const initAuth = async () => {
       try {
-        // Get current session
         const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        setIsAuthorized(currentUser?.email === AUTHORIZED_EMAIL);
 
-        // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-          setUser(session?.user ?? null);
+          const user = session?.user ?? null;
+          setUser(user);
+          setIsAuthorized(user?.email === AUTHORIZED_EMAIL);
         });
 
         return () => subscription.unsubscribe();
@@ -40,6 +63,7 @@ const App = () => {
     };
 
     initAuth();
+    fetchStories();
   }, []);
 
   useEffect(() => {
@@ -53,23 +77,71 @@ const App = () => {
     localStorage.setItem('darkMode', newDarkMode);
   };
 
-  // Fetch stories from Supabase
-  useEffect(() => {
-    const fetchStories = async () => {
-      const { data, error } = await supabase.from('stories').select('*');
-      if (error) {
-        console.error('Error fetching stories:', error);
-      } else {
-        setStories(data);
+  const handleDelete = async (storyId) => {
+    if (window.confirm('Are you sure you want to delete this story?')) {
+      try {
+        const { error } = await supabase
+          .from('stories')
+          .delete()
+          .eq('id', storyId);
+
+        if (error) {
+          console.error('Delete error:', error);
+          alert('Error deleting story');
+        } else {
+          await fetchStories();
+          navigate('/', { replace: true });
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Error deleting story');
       }
-    };
+    }
+  };
 
-    fetchStories();
-  }, []);
+  const handleEdit = async (storyId, editedTitle, editedContent) => {
+    try {
+      const numericId = parseInt(storyId, 10);
+      const { error } = await supabase
+        .from('stories')
+        .update([{
+          id: numericId,
+          title: editedTitle,
+          content: editedContent
+        }])
+        .eq('id', numericId);
+  
+      if (error) throw error;
+  
+      setStories(prevStories =>
+        prevStories.map(story =>
+          story.id === numericId
+            ? { ...story, title: editedTitle, content: editedContent }
+            : story
+        )
+      );
+  
+      return true;
+    } catch (error) {
+      console.error('Error updating story:', error);
+      alert('Error updating story');
+      return false;
+    }
+  };
 
-  // Add a new story
+  const handleSort = (order) => {
+    setSortOrder(order);
+    const sortedStories = [...stories].sort((a, b) => {
+      if (order === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+    setStories(sortedStories);
+  };
+
   const addStory = async (e) => {
-    e.preventDefault(); // Prevent form submission
+    e.preventDefault();
     
     if (!newTitle || !newContent) {
       alert('Please fill in both title and content');
@@ -77,48 +149,69 @@ const App = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('stories')
         .insert([{ title: newTitle, content: newContent }])
-        .select(); // Add this to get the inserted data back
+        .select();
 
       if (error) {
-        console.error('Error adding story:', error);
-        alert('Error adding story');
-      } else {
-        // Add the new story to the list
-        setStories(prevStories => [...prevStories, ...data]);
-        // Clear the form
-        setNewTitle('');
-        setNewContent('');
+        throw error;
       }
+
+      await fetchStories();
+      setNewTitle('');
+      setNewContent('');
+      setIsModalOpen(false);
     } catch (error) {
       console.error('Error:', error);
       alert('Error adding story');
     }
   };
 
-  const isAuthorized = user?.email === AUTHORIZED_EMAIL;
-  console.log('Is authorized:', isAuthorized, 'User email:', user?.email); // Debug log
-
   return (
     <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
-      <DarkModeToggle darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-      {user && <LogoutButton />}
+      <div className="header-controls">
+        <Routes>
+          <Route path="/story/:id" element={
+            <Link to="/" className="back-button">
+              <FaArrowLeft />
+            </Link>
+          } />
+        </Routes>
+        <div className="right-controls">
+          {isAuthorized && (
+            <button className="add-button" onClick={() => setIsModalOpen(true)}>
+              <FaPlus />
+            </button>
+          )}
+          <DarkModeToggle darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+          {user && <LogoutButton />}
+        </div>
+      </div>
+      
+      {isAuthorized && (
+        <AddStoryModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          newTitle={newTitle}
+          setNewTitle={setNewTitle}
+          newContent={newContent}
+          setNewContent={setNewContent}
+          addStory={addStory}
+        />
+      )}
+      
       <Routes>
         <Route 
           path="/" 
           element={
             <StoryList 
               stories={stories}
-              addStory={addStory}
-              newTitle={newTitle}
-              setNewTitle={setNewTitle}
-              newContent={newContent}
-              setNewContent={setNewContent}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               isAuthorized={isAuthorized}
+              sortOrder={sortOrder}
+              onSort={handleSort}
             />
           } 
         />
@@ -128,7 +221,8 @@ const App = () => {
             <StoryDetails 
               stories={stories} 
               isAuthorized={isAuthorized} 
-              setStories={setStories} 
+              handleDelete={handleDelete}
+              onEdit={handleEdit}
             />
           } 
         />
