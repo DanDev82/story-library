@@ -11,19 +11,21 @@ const Login = ({ onLogin }) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-
+  
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
+  
       if (error) {
-        console.error('Login error:', error);
         setMessage(`Error: ${error.message}`);
+      } else if (data?.user) {
+        // Clear form after successful login
+        setEmail('');
+        setPassword('');
       }
     } catch (error) {
-      console.error('Login error:', error);
       setMessage('Error logging in');
     } finally {
       setLoading(false);
@@ -58,4 +60,4 @@ const Login = ({ onLogin }) => {
   );
 };
 
-export default Login; 
+export default Login;

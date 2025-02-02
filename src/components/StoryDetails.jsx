@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { FaPencilAlt, FaTrashAlt, FaArrowLeft } from 'react-icons/fa';  // Add FaArrowLeft
 
-const StoryDetails = ({ stories, isAuthorized, handleDelete, onEdit }) => {
+const StoryDetails = ({ stories, isAuthorized, handleDelete, onEdit, user }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const story = stories.find(s => s.id === parseInt(id));
@@ -54,6 +54,12 @@ const StoryDetails = ({ stories, isAuthorized, handleDelete, onEdit }) => {
 
   return (
     <div className="story-details">
+      {console.log('Auth Debug:', { 
+        userExists: !!user, 
+        userEmail: user?.email,
+        isAuthorized: isAuthorized,
+        authorizedEmail: import.meta.env.VITE_AUTHORIZED_EMAIL 
+      })}
       {isEditing ? (
         <form onSubmit={onEditSubmit} className="edit-form">  {/* Make sure this matches */}
           <input
@@ -80,12 +86,20 @@ const StoryDetails = ({ stories, isAuthorized, handleDelete, onEdit }) => {
           <div className="story-content">
             {formatContent(story.content)}
           </div>
-          {isAuthorized && (
+          {user && isAuthorized && (
             <div className="story-actions">
-              <button className="edit-button" onClick={() => setIsEditing(true)}>
+              <button 
+                className="edit-button" 
+                onClick={() => setIsEditing(true)}
+                aria-label="Edit story"
+              >
                 <FaPencilAlt />
               </button>
-              <button className="delete-button" onClick={() => handleDelete(story.id)}>
+              <button 
+                className="delete-button" 
+                onClick={() => handleDelete(story.id)}
+                aria-label="Delete story"
+              >
                 <FaTrashAlt />
               </button>
             </div>

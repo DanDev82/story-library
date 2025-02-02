@@ -266,7 +266,6 @@ a {
   gap: 1rem;
   justify-content: center;
   margin: 2rem 0;
-  position: absolute;
   bottom: 2rem;
   left: 0;
   right: 0;
@@ -578,6 +577,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .edit-button {

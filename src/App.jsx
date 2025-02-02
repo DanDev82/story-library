@@ -11,7 +11,7 @@ import './index.css';
 import './styles/stories.css';
 import LogoutButton from './components/LogoutButton';
 
-const AUTHORIZED_EMAIL = 'ifdanthencool@gmail.com';
+const AUTHORIZED_EMAIL = import.meta.env.VITE_AUTHORIZED_EMAIL;
 
 const App = () => {
   const navigate = useNavigate();
@@ -33,12 +33,14 @@ const App = () => {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error fetching stories:', error);
+        // Remove console.error
+        alert('Error fetching stories');
       } else {
         setStories(data || []);
       }
     } catch (error) {
-      console.error('Error fetching stories:', error);
+      // Remove console.error
+      alert('Error fetching stories');
     }
   };
 
@@ -48,17 +50,22 @@ const App = () => {
         const { data: { session } } = await supabase.auth.getSession();
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+        console.log('Auth Check:', {
+          userEmail: currentUser?.email,
+          authorizedEmail: AUTHORIZED_EMAIL,
+          match: currentUser?.email === AUTHORIZED_EMAIL
+        });
         setIsAuthorized(currentUser?.email === AUTHORIZED_EMAIL);
-
+  
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
           const user = session?.user ?? null;
           setUser(user);
           setIsAuthorized(user?.email === AUTHORIZED_EMAIL);
         });
-
+  
         return () => subscription.unsubscribe();
       } catch (error) {
-        console.error('Auth error:', error);
+        alert('Auth error');
       }
     };
 
@@ -86,14 +93,14 @@ const App = () => {
           .eq('id', storyId);
 
         if (error) {
-          console.error('Delete error:', error);
+          // Remove console.error
           alert('Error deleting story');
         } else {
           await fetchStories();
           navigate('/', { replace: true });
         }
       } catch (error) {
-        console.error('Delete error:', error);
+        // Remove console.error
         alert('Error deleting story');
       }
     }
@@ -123,7 +130,7 @@ const App = () => {
   
       return true;
     } catch (error) {
-      console.error('Error updating story:', error);
+      // Remove console.error
       alert('Error updating story');
       return false;
     }
@@ -163,7 +170,7 @@ const App = () => {
       setNewContent('');
       setIsModalOpen(false);
     } catch (error) {
-      console.error('Error:', error);
+      // Remove console.error
       alert('Error adding story');
     }
   };
@@ -171,15 +178,17 @@ const App = () => {
   return (
     <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
       <div className="header-controls">
-        <Routes>
-          <Route path="/story/:id" element={
-            <Link to="/" className="back-button">
-              <FaArrowLeft />
-            </Link>
-          } />
-        </Routes>
+        <div className="left-controls">
+          <Routes>
+            <Route path="/story/:id" element={
+              <Link to="/" className="back-button">
+                <FaArrowLeft />
+              </Link>
+            } />
+          </Routes>
+        </div>
         <div className="right-controls">
-          {isAuthorized && (
+          {user && isAuthorized && (
             <button className="add-button" onClick={() => setIsModalOpen(true)}>
               <FaPlus />
             </button>
@@ -189,45 +198,49 @@ const App = () => {
         </div>
       </div>
       
-      {isAuthorized && (
-        <AddStoryModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          newTitle={newTitle}
-          setNewTitle={setNewTitle}
-          newContent={newContent}
-          setNewContent={setNewContent}
-          addStory={addStory}
-        />
+      {!user ? (
+        <Login />
+      ) : (
+        <>
+          <AddStoryModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            newTitle={newTitle}
+            setNewTitle={setNewTitle}
+            newContent={newContent}
+            setNewContent={setNewContent}
+            addStory={addStory}
+          />
+          
+          <Routes>
+            <Route 
+              path="/" 
+              element={
+                <StoryList 
+                  stories={stories}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  isAuthorized={isAuthorized}
+                  sortOrder={sortOrder}
+                  onSort={handleSort}
+                />
+              } 
+            />
+            <Route 
+              path="/story/:id" 
+              element={
+                <StoryDetails 
+                  stories={stories} 
+                  isAuthorized={isAuthorized}
+                  user={user}
+                  handleDelete={handleDelete}
+                  onEdit={handleEdit}
+                />
+              } 
+            />
+          </Routes>
+        </>
       )}
-      
-      <Routes>
-        <Route 
-          path="/" 
-          element={
-            <StoryList 
-              stories={stories}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              isAuthorized={isAuthorized}
-              sortOrder={sortOrder}
-              onSort={handleSort}
-            />
-          } 
-        />
-        <Route 
-          path="/story/:id" 
-          element={
-            <StoryDetails 
-              stories={stories} 
-              isAuthorized={isAuthorized} 
-              handleDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          } 
-        />
-      </Routes>
-      {!user && <Login />}
     </div>
   );
 };
